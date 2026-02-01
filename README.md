@@ -2,10 +2,10 @@
 A robust Network Intrusion Detection System using topological graph features (PageRank, Degree Centrality) to defend against adversarial evasion attacks.
 
 ## Overview
--**Dataset:** CIC-IDS2017 (Wednesday - DoS Attacks).
--**Method:** Hybrid Deep Learning (MLP) combining Statistical + Graph Features.
--**Defense:** Adversarial Training & Topological Feature Locking.
--**Key Result:** Restores detection accuracy from ~0% (under attack) to >95% (with graph defense).
+- **Dataset:** CIC-IDS2017 (Wednesday - DoS Attacks).
+- **Method:** Hybrid Deep Learning (MLP) combining Statistical + Graph Features.
+- **Defense:** Adversarial Training & Topological Feature Locking.
+- **Key Result:** Restores detection accuracy from ~0% (under attack) to >95% (with graph defense).
 
 ## Dataset
 This project uses the **CICIDS2017** dataset, specifically the `Wednesday-workingHours.pcap_ISCX.csv` (DoS Attacks).
