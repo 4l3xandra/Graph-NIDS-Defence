@@ -96,6 +96,35 @@ def process_pipeline():
     scaler_graph = StandardScaler()
     X_train_graph = scaler_graph.fit_transform(X_train_full).astype('float32')
     X_test_graph = scaler_graph.transform(X_test_full).astype('float32')
+
+# ------------------------------------------
+# 2. MODEL UTILITIES
+# ------------------------------------------
+def build_and_train_model(X_train, y_train, input_dim, model_name="Model"):
+    print(f"\n[{model_name}] Building Model (Input: {input_dim})...")
+    model = Sequential([
+        Input(shape=(input_dim,)),
+        Dense(128, activation='relu'),
+        Dropout(0.3),
+        Dense(64, activation='relu'),
+        Dropout(0.3),
+        Dense(1, activation='sigmoid')
+    ])
+    model.compile(optimizer=Adam(0.001), loss='binary_crossentropy', metrics=['accuracy'])
+    model.fit(X_train, y_train, epochs=5, batch_size=64, validation_split=0.1, verbose=1)
+    return model
+
+def run_constrained_fgsm(model, X_input, y_input, mask, epsilon):
+    """ Generates White-Box Adversarial Examples (Gradient from Target Model) """
+    with tf.GradientTape() as tape:
+        tape.watch(X_input)
+        pred = model(X_input, training=False)
+        loss = tf.keras.losses.binary_crossentropy(y_input, pred)
+    
+    gradient = tape.gradient(loss, X_input)
+    constrained_grad = gradient * mask 
+    X_adv = (X_input + epsilon * tf.sign(constrained_grad)).numpy()
+    return X_adv
     
     # Return test_df to look up Attack Names later
     return X_train_stat, X_test_stat, X_train_graph, X_test_graph, y_train, y_test, test_df
