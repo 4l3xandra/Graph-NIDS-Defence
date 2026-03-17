@@ -231,3 +231,19 @@ def main(args):
         print(f"{epsilon:<10} | {'Black-Box':<15} | {acc_b:.4f}     | {status_b}")
         if epsilon == 0.1: acc_b_final = acc_b
         print("-" * 70)
+        
+    # E. CALIBRATION & ANALYSIS
+    plot_calibration_and_analysis(model_graph, X_eval, y_eval, mask_tensor, test_df, indices, args.show_plots)
+
+    # F. ROBUSTNESS COMPARISON 
+    print("\n[*] Visualizing Final Robustness Comparison...")
+    results = {
+        'Model': ['Baseline', 'Baseline', 'Graph Defense', 'Graph Defense'],
+        'Scenario': ['Clean', 'Under Attack', 'White-Box (Attack)', 'Black-Box (Attack)'],
+        'Accuracy': [clean_acc, atk_acc, acc_w_final, acc_b_final] 
+    }
+
+    # G. FEATURE IMPORTANCE
+    calculate_feature_importance(model_graph, X_eval, y_eval, feature_names, args.show_plots)
+
+    print("\n[SUCCESS] Pipeline Complete. All results generated.")
