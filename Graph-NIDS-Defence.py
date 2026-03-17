@@ -4,6 +4,8 @@ import networkx as nx
 import os
 import sys
 import tensorflow as tf
+import matplotlib.pyplot as plt
+import seaborn as sns
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, Input
 from tensorflow.keras.optimizers import Adam
