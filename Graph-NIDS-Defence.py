@@ -20,9 +20,7 @@ TEST_SIZE = 0.2
 tf.random.set_seed(42)
 np.random.seed(42)
 
-# ------------------------------------------
-# 1. ETL & GRAPH FEATURE ENGINEERING
-# ------------------------------------------
+# 1. ETL
 def load_and_clean_data(path):
     if not os.path.exists(path):
         print(f"[!] Error: Dataset not found at {path}")
@@ -45,7 +43,7 @@ def load_and_clean_data(path):
     df = df.replace([np.inf, -np.inf], np.nan).dropna()
     print(f"Final Shape: {df.shape}")
     return df
-
+# 2. GRAPH-FEATURE ENGINEERING
 def extract_windowed_graph_features(df, window_size='5min'):
     print(f"[*] Extracting graph features using {window_size} rolling windows...")
     processed_chunks = []
