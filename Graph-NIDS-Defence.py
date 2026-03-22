@@ -229,7 +229,7 @@ def main(args):
         
         X_black = (X_eval + epsilon * tf.sign(full_grad * mask_tensor)).numpy()
         _, acc_b = model_graph.evaluate(X_black, y_eval.numpy(), verbose=0)
-        status_b = "RESISTED" if acc_b > 0.9 else "FAILED"
+        status_b = "RESISTED" if acc_b > 0.95 else "FAILED"
         print(f"{epsilon:<10} | {'Black-Box':<15} | {acc_b:.4f}     | {status_b}")
         if epsilon == 0.1: acc_b_final = acc_b
         print("-" * 70)
