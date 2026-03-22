@@ -17,10 +17,12 @@ from sklearn.metrics import confusion_matrix
 DATA_PATH = "Wednesday-workingHours.pcap_ISCX.csv"
 RANDOM_STATE = 42
 TEST_SIZE = 0.2
-tf.random.set_seed(42)
-np.random.seed(42)
+tf.random.set_seed(RANDOM_STATE)
+np.random.seed(RANDOM_STATE)
 
-# 1. ETL
+# -----------------------------------
+# 1. ETL & GRAPH FEATURE ENGINEERING
+# -----------------------------------
 def load_and_clean_data(path):
     if not os.path.exists(path):
         print(f"[!] Error: Dataset not found at {path}")
@@ -43,7 +45,7 @@ def load_and_clean_data(path):
     df = df.replace([np.inf, -np.inf], np.nan).dropna()
     print(f"Final Shape: {df.shape}")
     return df
-# 2. GRAPH-FEATURE ENGINEERING
+
 def extract_windowed_graph_features(df, window_size='5min'):
     print(f"[*] Extracting graph features using {window_size} rolling windows...")
     processed_chunks = []
@@ -134,9 +136,9 @@ def process_pipeline(data_path):
     feature_names = X_train_full.columns.tolist()
     return X_train_stat, X_test_stat, X_train_graph, X_test_graph, y_train, y_test, test_df, feature_names, len(graph_cols)
 
-# ------------------------------------------
+# -------------------
 # 2. MODEL UTILITIES
-# ------------------------------------------
+# -------------------
 def build_and_train_model(X_train, y_train, input_dim, model_name="Model"):
     print(f"\n[{model_name}] Building Model (Input: {input_dim})...")
     model = Sequential([
@@ -159,21 +161,110 @@ def run_constrained_fgsm(model, X_input, y_input, mask, epsilon):
         loss = tf.keras.losses.binary_crossentropy(y_input, pred)
     
     gradient = tape.gradient(loss, X_input)
-    constrained_grad = gradient * mask 
-    X_adv = (X_input + epsilon * tf.sign(constrained_grad)).numpy()
+    # Only apply mask if it is provided (allows baseline to be attacked)
+    if mask is not None:
+        gradient = gradient * mask 
+        
+    X_adv = (X_input + epsilon * tf.sign(gradient)).numpy()
     return X_adv
-    
-    # Return test_df to look up Attack Names later
-    return X_train_stat, X_test_stat, X_train_graph, X_test_graph, y_train, y_test, test_df
+
+# ------------------------------
+# 3. EVALUATION & VISUALIZATION
+# ------------------------------
+def plot_calibration_and_analysis(model_graph, X_eval, y_eval, mask_tensor, test_df, indices):
+    print("\n[*] Running Calibration (Sensitivity Analysis)...")
+    X_white_viz = run_constrained_fgsm(model_graph, X_eval, y_eval, mask_tensor, epsilon=0.1)
+    pred_probs = model_graph.predict(X_white_viz, verbose=0)
+
+    THRESHOLD = 0.15
+    pred_labels = (pred_probs > THRESHOLD).astype(int).flatten()
+
+    original_labels = test_df.iloc[indices]['Label'].values
+    analysis_df = pd.DataFrame({
+        'Actual_Type': original_labels,
+        'Predicted_Benign_Malicious': pred_labels
+    })
+
+    attack_types = analysis_df['Actual_Type'].unique()
+    type_accuracies = {}
+
+    print(f"\n Detection Rate by Attack Type (Threshold={THRESHOLD})")
+    for atk_type in attack_types:
+        if atk_type == 'BENIGN': continue
+        subset = analysis_df[analysis_df['Actual_Type'] == atk_type]
+        detected = subset[subset['Predicted_Benign_Malicious'] == 1]
+        
+        if len(subset) > 0:
+            acc = len(detected) / len(subset)
+            type_accuracies[atk_type] = acc
+            print(f"{atk_type:<20} | {acc:.2%}")
+
+    # Detection Rates Bar Chart
+    plt.figure(figsize=(10, 6))
+    sorted_acc = dict(sorted(type_accuracies.items(), key=lambda item: item[1], reverse=True))
+    sns.barplot(x=list(sorted_acc.keys()), y=list(sorted_acc.values()), palette='viridis', hue=list(sorted_acc.keys()), legend=False)
+    plt.title(f'Optimized Detection Rates (Sensitivity={THRESHOLD})')
+    plt.ylabel('Detection Rate')
+    plt.xticks(rotation=45, ha='right')
+    plt.ylim(0, 1.1)
+    plt.axhline(0.95, color='red', linestyle='--', label='Target (95%)')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig('detection_rates.png')
+    print("Saved: detection_rates.png")
+    plt.show()
+
+    # Confusion Matrix
+    cm = confusion_matrix(y_eval, pred_labels)
+    plt.figure(figsize=(6, 5))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
+                xticklabels=['Predicted Benign', 'Predicted Malicious'],
+                yticklabels=['Actual Benign', 'Actual Malicious'])
+    plt.title(f'Confusion Matrix (Sensitivity={THRESHOLD})')
+    plt.ylabel('True Label')
+    plt.xlabel('Predicted Label')
+    plt.tight_layout()
+    plt.savefig('confusion_matrix.png')
+    print("Saved: confusion_matrix.png")
+    plt.show()
+
+def calculate_feature_importance(model_graph, X_eval, y_eval, feature_names):
+    print("\n[*] Calculating Feature Importance...")
+    _, base_acc = model_graph.evaluate(X_eval, y_eval.numpy(), verbose=0)
+        
+    importances = []
+    for i in range(X_eval.shape[1]):
+        X_temp = X_eval.numpy().copy()
+        X_temp[:, i] = np.random.permutation(X_temp[:, i])
+        _, scrambled_acc = model_graph.evaluate(X_temp, y_eval.numpy(), verbose=0)
+        importances.append(base_acc - scrambled_acc)
+            
+    importance_df = pd.DataFrame({
+        'Feature': feature_names,
+        'Importance_Score': importances
+    }).sort_values(by='Importance_Score', ascending=False)
+        
+    top_features = importance_df.head(15)
+        
+    plt.figure(figsize=(10, 8))
+    sns.barplot(x='Importance_Score', y='Feature', data=top_features, palette='magma', hue='Feature', legend=False)
+    plt.title('Top 15 Feature Importances (Permutation Method)')
+    plt.xlabel('Decrease in Accuracy when Feature is Shuffled')
+    plt.ylabel('Network Feature')
+    plt.grid(axis='x', linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.savefig('feature_importance.png')
+    print("Saved: feature_importance.png")
+    plt.show()
 
 # ------------------------------------------
-# 3. MAIN EXECUTION FLOW
+# 4. MAIN EXECUTION FLOW
 # ------------------------------------------
 def main():
-    # A. Load data
-    X_train_stat, X_test_stat, X_train_graph, X_test_graph, y_train, y_test, test_df, feature_names, graph_cols_count = process_pipeline()
+    # A. LOAD DATA
+    X_train_stat, X_test_stat, X_train_graph, X_test_graph, y_train, y_test, test_df, feature_names, graph_cols_count = process_pipeline(DATA_PATH)
 
-    # B. Train Baseline (Statistical)
+    # B. TRAIN BASELINE (STATISTICAL ONLY)
     model_baseline = build_and_train_model(X_train_stat, y_train, X_train_stat.shape[1], "Baseline")
     _, clean_acc = model_baseline.evaluate(X_test_stat, y_test, verbose=0)
     
@@ -186,10 +277,10 @@ def main():
         y_test[:sample_size], verbose=0
     )
 
-    # C. Train Graph Model
+    # C. TRAIN GRAPH MODEL
     model_graph = build_and_train_model(X_train_graph, y_train, X_train_graph.shape[1], "Graph-Enhanced")
 
-    # D. Attack simulation (Stress test)
+    # D. ATTACK SIMULATION (STRESS TEST)
     print("\n" + "="*70)
     print("STRESS TEST: Constrained Attacks (Graph Features Locked)")
     print(f"{'EPSILON':<10} | {'ATTACK TYPE':<15} | {'ACCURACY':<10} | {'RESULT'}")
@@ -237,11 +328,22 @@ def main():
 
     # F. ROBUSTNESS COMPARISON 
     print("\n[*] Visualizing Final Robustness Comparison...")
-    results = {
+    results = pd.DataFrame({
         'Model': ['Baseline', 'Baseline', 'Graph Defense', 'Graph Defense'],
         'Scenario': ['Clean', 'Under Attack', 'White-Box (Attack)', 'Black-Box (Attack)'],
         'Accuracy': [clean_acc, atk_acc, acc_w_final, acc_b_final] 
-    }
+    })
+
+    plt.figure(figsize=(10, 6))
+    sns.barplot(x='Model', y='Accuracy', hue='Scenario', data=results, palette='viridis')
+    plt.title('Robustness Comparison: Statistical vs. Graph Features')
+    plt.ylim(0, 1.1)
+    plt.axhline(y=0.95, color='r', linestyle='--', label='Success Threshold (95%)')
+    plt.legend(loc='lower right')
+    plt.grid(axis='y', linestyle='--', alpha=0.7)
+    plt.savefig('robustness_comparison.png')
+    print("Saved: robustness_comparison.png")
+    plt.show()
 
     # G. FEATURE IMPORTANCE
     calculate_feature_importance(model_graph, X_eval, y_eval, feature_names)
