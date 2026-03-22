@@ -171,9 +171,9 @@ def run_constrained_fgsm(model, X_input, y_input, mask, epsilon):
 # ------------------------------------------
 # 3. MAIN EXECUTION FLOW
 # ------------------------------------------
-def main(args):
+def main():
     # A. Load data
-    X_train_stat, X_test_stat, X_train_graph, X_test_graph, y_train, y_test, test_df, feature_names, graph_cols_count = process_pipeline(args.data)
+    X_train_stat, X_test_stat, X_train_graph, X_test_graph, y_train, y_test, test_df, feature_names, graph_cols_count = process_pipeline()
 
     # B. Train Baseline (Statistical)
     model_baseline = build_and_train_model(X_train_stat, y_train, X_train_stat.shape[1], "Baseline")
@@ -211,7 +211,7 @@ def main(args):
         # 1. White-Box Attack
         X_white = run_constrained_fgsm(model_graph, X_eval, y_eval, mask_tensor, epsilon)
         _, acc_w = model_graph.evaluate(X_white, y_eval.numpy(), verbose=0)
-        status_w = "RESISTED" if acc_w > 0.9 else "FAILED"
+        status_w = "RESISTED" if acc_w > 0.95 else "FAILED"
         print(f"{epsilon:<10} | {'White-Box':<15} | {acc_w:.4f}     | {status_w}")
         if epsilon == 0.1: acc_w_final = acc_w
 
@@ -235,7 +235,7 @@ def main(args):
         print("-" * 70)
         
     # E. CALIBRATION & ANALYSIS
-    plot_calibration_and_analysis(model_graph, X_eval, y_eval, mask_tensor, test_df, indices, args.show_plots)
+    plot_calibration_and_analysis(model_graph, X_eval, y_eval, mask_tensor, test_df, indices)
 
     # F. ROBUSTNESS COMPARISON 
     print("\n[*] Visualizing Final Robustness Comparison...")
@@ -246,6 +246,9 @@ def main(args):
     }
 
     # G. FEATURE IMPORTANCE
-    calculate_feature_importance(model_graph, X_eval, y_eval, feature_names, args.show_plots)
+    calculate_feature_importance(model_graph, X_eval, y_eval, feature_names)
 
     print("\n[SUCCESS] Pipeline Complete. All results generated.")
+
+if __name__ == "__main__":
+    main()
