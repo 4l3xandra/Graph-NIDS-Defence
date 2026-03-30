@@ -31,22 +31,28 @@ Python 3.11 is recommended for compatibility with TensorFlow.
 ```
 (Note: The script will automatically generate .png visualizations of the Confusion Matrix, Detection Rates, Robustness Comparison, and Feature Importances.)
 - For advanced configuration:
+
 The project features a Command-Line Interface (CLI) allowing modification of the pipeline parameters.
 
 **View all commands:**
+
 ```bash
 python Graph-NIDS-Defence.py --help
 ```
+
 **Custom execution example:**
+
 For 5,000 samples and a 70/30 split:
 ```bash
 python Graph-NIDS-Defence.py --samples 5000 --test_size 0.3
 ```
+
 **Available arguments:**
---data : Path to the dataset CSV file (default: Wednesday-workingHours.pcap_ISCX.csv). (Note that custom datasets must contain 'Source IP', 'Destination IP', 'Timestamp', and 'Label' columns to generate the graph topologies.)
 
---samples : Total number of test-set network flows to subject to the FGSM stress test (default: 10000).
+- data : Path to the dataset CSV file (default: Wednesday-workingHours.pcap_ISCX.csv). (Note that custom datasets must contain 'Source IP', 'Destination IP', 'Timestamp', and 'Label' columns to generate the graph topologies.)
 
---test_size : Stratified chronological split ratio (default: 0.2).
+- samples : Total number of test-set network flows to subject to the FGSM stress test (default: 10000).
 
---seed : Mathematical seed for keeping the train/test splits and network weights consistent across different runs (default: 42).
+- test_size : Stratified chronological split ratio (default: 0.2).
+
+- seed : Mathematical seed for keeping the train/test splits and network weights consistent across different runs (default: 42).
