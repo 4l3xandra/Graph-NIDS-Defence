@@ -3,6 +3,7 @@ import numpy as np
 import networkx as nx
 import os
 import sys
+import argparse
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -11,14 +12,6 @@ from tensorflow.keras.layers import Dense, Dropout, Input
 from tensorflow.keras.optimizers import Adam
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import confusion_matrix
-
-# CONFIGURATION 
-# The file is expected to be in the same directory as this script
-DATA_PATH = "Wednesday-workingHours.pcap_ISCX.csv"
-RANDOM_STATE = 42
-TEST_SIZE = 0.2
-tf.random.set_seed(RANDOM_STATE)
-np.random.seed(RANDOM_STATE)
 
 # -----------------------------------
 # 1. ETL & GRAPH FEATURE ENGINEERING
@@ -88,22 +81,36 @@ def extract_windowed_graph_features(df, window_size='5min'):
     print("[*] Windowed feature extraction complete.")
     return pd.concat(processed_chunks).reset_index(drop=True)
 
-def process_pipeline(data_path):
+def process_pipeline(data_path, test_size, random_state):
     df = load_and_clean_data(data_path)
     
     # 1. Extract dynamic windowed graph features
     df_graph = extract_windowed_graph_features(df, window_size='5min')
     
-    # 2. Split dataset chronologically to prevent time-series data leakage
-    print("[*] Splitting dataset chronologically...")
-    df_graph['window_id'] = df_graph['Timestamp'].dt.floor('5min')
+    # 2. STRATIFIED CHRONOLOGICAL SPLIT
+    print("[*] Splitting dataset (Stratified Chronological by Attack Type)...")
+    train_list = []
+    test_list = []
     
-    unique_windows = df_graph['window_id'].sort_values().unique()
-    split_point = int(len(unique_windows) * (1 - TEST_SIZE))
-    train_windows = unique_windows[:split_point]
-
-    train_df_graph = df_graph[df_graph['window_id'].isin(train_windows)].copy()
-    test_df_graph = df_graph[~df_graph['window_id'].isin(train_windows)].copy()
+    # Group by the original string Label to isolate each attack signature
+    for label, group in df_graph.groupby('Label'):
+        # Ensure chronological order for this specific attack
+        group = group.sort_values('Timestamp')
+        
+        # Calculate 80% split index
+        split_idx = int(len(group) * (1 - test_size))
+        
+        # Handle extremely rare attacks (Heartbleed)
+        if 0 < len(group) < 20:
+            # Prevent 0-split for single-sample classes
+            split_idx = max(1, int(len(group) * 0.5))
+            
+        train_list.append(group.iloc[:split_idx])
+        test_list.append(group.iloc[split_idx:])
+        
+    # Recombine and shuffle the final blocks so the neural network doesn't read them in alphabetical order
+    train_df_graph = pd.concat(train_list).sample(frac=1, random_state=random_state).reset_index(drop=True)
+    test_df_graph = pd.concat(test_list).sample(frac=1, random_state=random_state).reset_index(drop=True)
 
     # 3. Extract labels after the final split
     y_train = train_df_graph['binary_label'].values
@@ -215,7 +222,7 @@ def plot_calibration_and_analysis(model_graph, X_eval, y_eval, mask_tensor, test
     plt.show()
 
     # Confusion Matrix
-    cm = confusion_matrix(y_eval, pred_labels)
+    cm = confusion_matrix(y_eval.numpy().flatten(), pred_labels)
     plt.figure(figsize=(6, 5))
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
                 xticklabels=['Predicted Benign', 'Predicted Malicious'],
@@ -260,16 +267,20 @@ def calculate_feature_importance(model_graph, X_eval, y_eval, feature_names):
 # ------------------------------------------
 # 4. MAIN EXECUTION FLOW
 # ------------------------------------------
-def main():
+def main(args):
+    # Set the random seeds based on the argument
+    tf.random.set_seed(args.seed)
+    np.random.seed(args.seed)
     # A. LOAD DATA
-    X_train_stat, X_test_stat, X_train_graph, X_test_graph, y_train, y_test, test_df, feature_names, graph_cols_count = process_pipeline(DATA_PATH)
+    X_train_stat, X_test_stat, X_train_graph, X_test_graph, y_train, y_test, test_df, feature_names, graph_cols_count = process_pipeline(args.data, args.test_size, args.seed)
 
     # B. TRAIN BASELINE (STATISTICAL ONLY)
     model_baseline = build_and_train_model(X_train_stat, y_train, X_train_stat.shape[1], "Baseline")
     _, clean_acc = model_baseline.evaluate(X_test_stat, y_test, verbose=0)
     
     print("[*] Generating Baseline Attack Data...")
-    sample_size = min(2000, len(X_test_stat))
+    # Match the user's CLI request
+    sample_size = min(args.samples, len(X_test_stat))
     _, atk_acc = model_baseline.evaluate(
         run_constrained_fgsm(model_baseline, tf.convert_to_tensor(X_test_stat[:sample_size]), 
                              tf.convert_to_tensor(y_test[:sample_size].reshape(-1,1).astype('float32')), 
@@ -290,7 +301,16 @@ def main():
     mask_array[-graph_cols_count:] = 0.0 
     mask_tensor = tf.convert_to_tensor(mask_array)
 
-    indices = np.random.choice(len(X_test_graph), size=sample_size, replace=False)
+    # HEARTBLEED FIX: Force rare attacks into the evaluation sample
+    heartbleed_idx = np.where(test_df['Label'] == 'Heartbleed')[0]
+    other_idx = np.where(test_df['Label'] != 'Heartbleed')[0]
+    
+    # Grab all Heartbleed packets + a random sample of the rest
+    safe_sample_size = min(sample_size, len(other_idx))
+    sampled_others = np.random.choice(other_idx, size=safe_sample_size, replace=False)
+    indices = np.concatenate([heartbleed_idx, sampled_others])
+    np.random.shuffle(indices) # Mix them up so the attacker doesn't see them all at once
+
     X_eval = tf.convert_to_tensor(X_test_graph[indices], dtype=tf.float32)
     y_eval = tf.convert_to_tensor(np.expand_dims(y_test[indices], -1), dtype=tf.float32)
 
@@ -351,4 +371,18 @@ def main():
     print("\n[SUCCESS] Pipeline Complete. All results generated.")
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Graph-Enhanced NIDS Adversarial Stress Test")
+    
+    # Define arguments
+    parser.add_argument('--data', type=str, default="Wednesday-workingHours.pcap_ISCX.csv", 
+                        help="Path to the dataset CSV file")
+    parser.add_argument('--samples', type=int, default=10000, 
+                        help="Number of test samples for FGSM evaluation (default: 10000)")
+    parser.add_argument('--test_size', type=float, default=0.2, 
+                        help="Train/Test split ratio (default: 0.2)")
+    parser.add_argument('--seed', type=int, default=42, 
+                        help="Random seed for reproducibility (default: 42)")
+    
+    # Parse the arguments and pass them to main()
+    args = parser.parse_args()
+    main(args)
