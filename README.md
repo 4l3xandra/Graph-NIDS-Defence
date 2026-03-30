@@ -12,8 +12,7 @@ This project uses the **CICIDS2017** dataset, specifically the `Wednesday-workin
 The dataset is not included in this repository.
 
 *Download Instructions:*
-1. Download `Wednesday-workingHours.pcap_ISCX.csv` from the [Canadian Institute for Cybersecurity](https://www.unb.ca/cic/datasets/ids-2017.html).
-2. Place the CSV file in the **root directory** (same folder as `Graph-NIDS-Defence.py`).
+Download `Wednesday-workingHours.pcap_ISCX.csv` from the [Canadian Institute for Cybersecurity](https://www.unb.ca/cic/datasets/ids-2017.html).
 
 ## Installation
 Python 3.11 is recommended for compatibility with TensorFlow.
