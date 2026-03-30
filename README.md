@@ -32,6 +32,7 @@ Python 3.11 is recommended for compatibility with TensorFlow.
 (Note: The script will automatically generate .png visualizations of the Confusion Matrix, Detection Rates, Robustness Comparison, and Feature Importances.)
 - For advanced configuration:
 The project features a Command-Line Interface (CLI) allowing modification of the pipeline parameters.
+
 **View all commands:**
 ```bash
 python Graph-NIDS-Defence.py --help
