@@ -49,10 +49,10 @@ python Graph-NIDS-Defence.py --samples 5000 --test_size 0.3
 
 **Available arguments:**
 
-- data : Path to the dataset CSV file (default: Wednesday-workingHours.pcap_ISCX.csv). (Note that custom datasets must contain 'Source IP', 'Destination IP', 'Timestamp', and 'Label' columns to generate the graph topologies.)
+--data : Path to the dataset CSV file (default: Wednesday-workingHours.pcap_ISCX.csv). (Note that custom datasets must contain 'Source IP', 'Destination IP', 'Timestamp', and 'Label' columns to generate the graph topologies.)
 
-- samples : Total number of test-set network flows to subject to the FGSM stress test (default: 10000).
+--samples : Total number of test-set network flows to subject to the FGSM stress test (default: 10000).
 
-- test_size : Stratified chronological split ratio (default: 0.2).
+--test_size : Stratified chronological split ratio (default: 0.2).
 
-- seed : Mathematical seed for keeping the train/test splits and network weights consistent across different runs (default: 42).
+--seed : Mathematical seed for keeping the train/test splits and network weights consistent across different runs (default: 42).
