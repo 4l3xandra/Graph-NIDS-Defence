@@ -382,6 +382,10 @@ if __name__ == "__main__":
                         help="Train/Test split ratio (default: 0.2)")
     parser.add_argument('--seed', type=int, default=42, 
                         help="Random seed for reproducibility (default: 42)")
+    parser.add_argument('--epochs', type=int, default=5,
+                        help="Number of training epochs for the neural networks (default: 5)")
+    parser.add_argument('--epsilon', type=float, default=0.1,
+                        help="Perturbation magnitude for the FGSM attack (default: 0.1)")
     
     # Parse the arguments and pass them to main()
     args = parser.parse_args()
