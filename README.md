@@ -57,3 +57,7 @@ python Graph-NIDS-Defence.py --samples 5000 --test_size 0.3
 --test_size : Stratified chronological split ratio (default: 0.2).
 
 --seed : Mathematical seed for keeping the train/test splits and network weights consistent across different runs (default: 42).
+
+--epochs EPOCHS       Number of training epochs for the neural networks (default: 5)
+
+--epsilon EPSILON     Perturbation magnitude for the FGSM attack (default: 0.1)
