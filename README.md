@@ -8,7 +8,7 @@ A robust Network Intrusion Detection System using topological graph features (Pa
 - **Key Result:** Restores detection accuracy from ~65% (under attack) to >98% (with graph defence).
 
 ## Dataset
-This project uses the **CICIDS2017** dataset, specifically the `Wednesday-workingHours.pcap_ISCX.csv` (DoS Attacks).
+This project uses the **CICIDS2017** dataset, specifically the `Wednesday-workingHours.pcap_ISCX.csv` (DoS Attacks) from the `GeneratedLabelledFlaws` folder.
 The dataset is not included in this repository.
 
 *Download Instructions:*
